@@ -43,7 +43,7 @@ export default function App() {
 
   const fetchUserStatus = async () => {
     try {
-      const res = await fetch(`${API_URL}/user/status`);
+      const res = await fetch(`${API_URL}/api/user/status`);
       const data = await res.json();
       setUserStatus((prev) => ({ ...prev, ...data }));
     } catch (err) {
@@ -79,7 +79,7 @@ export default function App() {
     }
 
     try {
-      const res = await fetch(`${API_URL}/upload`, {
+      const res = await fetch(`${API_URL}/api/upload`, {
         method: "POST",
         body: formData,
       });
@@ -112,7 +112,7 @@ export default function App() {
   const handlePurchasePremium = async () => {
     setPurchasing(true);
     try {
-      const res = await fetch(`${API_URL}/create-checkout-session`, {
+      const res = await fetch(`${API_URL}/api/create-checkout-session`, {
         method: "POST",
       });
       const data = await res.json();
