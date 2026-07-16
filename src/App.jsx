@@ -139,10 +139,9 @@ export default function App() {
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
 
-const [token, setToken] = useState(() => localStorage.getItem('access_token'));
-const [showAuth, setShowAuth] = useState(false);
-const isLoggedIn = !!token;
-
+  const [token, setToken] = useState(() => localStorage.getItem('access_token'));
+  const [showAuth, setShowAuth] = useState(false);
+  const isLoggedIn = !!token;
 
   const [showPricing, setShowPricing] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
@@ -152,6 +151,7 @@ const isLoggedIn = !!token;
 
   useEffect(() => {
     fetchUserStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -161,36 +161,36 @@ const isLoggedIn = !!token;
   }, [toast]);
 
   const fetchUserStatus = async (authToken = token) => {
-  if (!authToken) return;
-  try {
-    const res = await fetch(`${API_URL}/api/user/status`, {
-      headers: { Authorization: `Bearer ${authToken}` },
-    });
-    if (!res.ok) {
-      // token wygasł albo jest nieprawidłowy
-      handleLogout();
-      return;
+    if (!authToken) return;
+    try {
+      const res = await fetch(`${API_URL}/api/user/status`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      if (!res.ok) {
+        // token wygasł albo jest nieprawidłowy
+        handleLogout();
+        return;
+      }
+      const data = await res.json();
+      setUserStatus((prev) => ({ ...prev, ...data }));
+    } catch (err) {
+      console.error("Error fetching user status", err);
     }
-    const data = await res.json();
-    setUserStatus((prev) => ({ ...prev, ...data }));
-  } catch (err) {
-    console.error("Error fetching user status", err);
-  }
-};
+  };
 
-const handleAuthSuccess = (newToken) => {
-  localStorage.setItem('access_token', newToken);
-  setToken(newToken);
-  setShowAuth(false);
-  fetchUserStatus(newToken);
-};
+  const handleAuthSuccess = (newToken) => {
+    localStorage.setItem('access_token', newToken);
+    setToken(newToken);
+    setShowAuth(false);
+    fetchUserStatus(newToken);
+  };
 
-const handleLogout = () => {
-  localStorage.removeItem('access_token');
-  setToken(null);
-  setUserStatus({ is_premium: false, analysis_count: 0 });
-  setReport(null);
-};
+  const handleLogout = () => {
+    localStorage.removeItem('access_token');
+    setToken(null);
+    setUserStatus({ is_premium: false, analysis_count: 0 });
+    setReport(null);
+  };
 
   const handleFileChange = (e) => {
     setFile(e.target.files[0]);
@@ -200,10 +200,10 @@ const handleLogout = () => {
 
   const handleAnalyze = async (e) => {
     e.preventDefault();
-     if (!isLoggedIn) {
-    setShowAuth(true);
-    return;
-  }
+    if (!isLoggedIn) {
+      setShowAuth(true);
+      return;
+    }
     if (limitReached) {
       setShowPricing(true);
       return;
@@ -217,12 +217,6 @@ const handleLogout = () => {
     setReport(null);
     setCopied(false);
 
-const res = await fetch(`${API_URL}/api/upload`, {
-  method: "POST",
-  headers: { Authorization: `Bearer ${token}` },
-  body: formData,
-});
-
     const formData = new FormData();
     formData.append("file", file);
     if (jobDescription) {
@@ -232,6 +226,7 @@ const res = await fetch(`${API_URL}/api/upload`, {
     try {
       const res = await fetch(`${API_URL}/api/upload`, {
         method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
 
@@ -259,18 +254,18 @@ const res = await fetch(`${API_URL}/api/upload`, {
     }
   };
 
-  // Integracja z Twoim nowym backendem Stripe:
+  // Integracja z Twoim backendem Stripe:
   const handlePurchasePremium = async () => {
-  if (!isLoggedIn) {
-    setShowAuth(true);
-    return;
-  }
-  setPurchasing(true);
-  try {
-    const res = await fetch(`${API_URL}/api/create-checkout-session`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    if (!isLoggedIn) {
+      setShowAuth(true);
+      return;
+    }
+    setPurchasing(true);
+    try {
+      const res = await fetch(`${API_URL}/api/create-checkout-session`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const data = await res.json();
       if (data.url) {
         window.location.href = data.url; // Przekierowanie do Stripe
@@ -523,58 +518,38 @@ const res = await fetch(`${API_URL}/api/upload`, {
           </span>
         </div>
         <div className="flex items-center space-x-3">
-  {!isLoggedIn ? (
-    <button
-      onClick={() => setShowAuth(true)}
-      className="grad-cta font-display font-semibold text-xs text-white py-2 px-4 rounded-xl"
-    >
-      Zaloguj się
-    </button>
-  ) : (
-    <>
-      {isPremium ? (
-        <span className="text-[11px] font-mono px-3 py-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 text-emerald-300 font-medium tracking-wide flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span>
-          PREMIUM ACTIVATED
-        </span>
-      ) : (
-        <>
-          <span className="hidden sm:inline text-[11px] font-mono px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.03] text-slate-400 font-medium tracking-wide">
-            PLAN DARMOWY &middot; {Math.max(FREE_MONTHLY_LIMIT - (userStatus.analysis_count || 0), 0)}/{FREE_MONTHLY_LIMIT} audytów
-          </span>
-          <button
-            onClick={() => setShowPricing(true)}
-            className="grad-cta font-display font-semibold text-xs text-white py-2 px-4 rounded-xl"
-          >
-            Ulepsz do Premium
-          </button>
-        </>
-      )}
-      <button
-        onClick={handleLogout}
-        className="text-xs font-mono text-slate-500 hover:text-slate-300 px-3 py-2"
-      >
-        Wyloguj
-      </button>
-    </>
-  )}
-</div>
-        <div className="flex items-center space-x-3">
-          {isPremium ? (
-            <span className="text-[11px] font-mono px-3 py-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 text-emerald-300 font-medium tracking-wide flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span>
-              PREMIUM ACTIVATED
-            </span>
+          {!isLoggedIn ? (
+            <button
+              onClick={() => setShowAuth(true)}
+              className="grad-cta font-display font-semibold text-xs text-white py-2 px-4 rounded-xl"
+            >
+              Zaloguj się
+            </button>
           ) : (
             <>
-              <span className="hidden sm:inline text-[11px] font-mono px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.03] text-slate-400 font-medium tracking-wide">
-                PLAN DARMOWY &middot; {Math.max(FREE_MONTHLY_LIMIT - (userStatus.analysis_count || 0), 0)}/{FREE_MONTHLY_LIMIT} audytów
-              </span>
+              {isPremium ? (
+                <span className="text-[11px] font-mono px-3 py-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 text-emerald-300 font-medium tracking-wide flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span>
+                  PREMIUM ACTIVATED
+                </span>
+              ) : (
+                <>
+                  <span className="hidden sm:inline text-[11px] font-mono px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.03] text-slate-400 font-medium tracking-wide">
+                    PLAN DARMOWY &middot; {Math.max(FREE_MONTHLY_LIMIT - (userStatus.analysis_count || 0), 0)}/{FREE_MONTHLY_LIMIT} audytów
+                  </span>
+                  <button
+                    onClick={() => setShowPricing(true)}
+                    className="grad-cta font-display font-semibold text-xs text-white py-2 px-4 rounded-xl"
+                  >
+                    Ulepsz do Premium
+                  </button>
+                </>
+              )}
               <button
-                onClick={() => setShowPricing(true)}
-                className="grad-cta font-display font-semibold text-xs text-white py-2 px-4 rounded-xl"
+                onClick={handleLogout}
+                className="text-xs font-mono text-slate-500 hover:text-slate-300 px-3 py-2"
               >
-                Ulepsz do Premium
+                Wyloguj
               </button>
             </>
           )}
@@ -603,71 +578,71 @@ const res = await fetch(`${API_URL}/api/upload`, {
             <h3 className="font-display text-xl font-semibold text-white border-b border-white/5 pb-3">
               Konfiguracja analizy
             </h3>
+
             {!isLoggedIn ? (
-  <div className="text-center py-8 space-y-4">
-    <p className="font-body text-sm text-slate-400">
-      Zaloguj się, aby uruchomić audyt CV.
-    </p>
-    <button
-      onClick={() => setShowAuth(true)}
-      className="grad-cta font-display font-semibold text-sm text-white py-3 px-6 rounded-xl"
-    >
-      Zaloguj się / Zarejestruj
-    </button>
-  </div>
-) : (
-  <form onSubmit={handleAnalyze} className="space-y-6">
-    <div>
-                <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-400 mb-2">
-                  Plik CV w formacie PDF
-                </label>
-                <input
-                  type="file"
-                  accept=".pdf"
-                  onChange={handleFileChange}
-                  className="w-full field-input text-sm"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-400 mb-2">
-                  Treść dedykowanej oferty pracy
-                </label>
-                <textarea
-                  value={jobDescription}
-                  onChange={(e) => setJobDescription(e.target.value)}
-                  placeholder="Wklej tutaj wymagania z ogłoszenia, aby algorytm wyliczył precyzyjny współczynnik dopasowania (Job Match)..."
-                  rows={8}
-                  className="w-full field-input text-sm resize-none scrollbar-thin"
-                />
-              </div>
-
-              {error && (
-                <p className="font-body text-sm text-rose-300 bg-rose-500/10 border border-rose-500/20 rounded-xl px-3 py-2">
-                  {error}
+              <div className="text-center py-8 space-y-4">
+                <p className="font-body text-sm text-slate-400">
+                  Zaloguj się, aby uruchomić audyt CV.
                 </p>
-              )}
+                <button
+                  onClick={() => setShowAuth(true)}
+                  className="grad-cta font-display font-semibold text-sm text-white py-3 px-6 rounded-xl"
+                >
+                  Zaloguj się / Zarejestruj
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleAnalyze} className="space-y-6">
+                <div>
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-400 mb-2">
+                    Plik CV w formacie PDF
+                  </label>
+                  <input
+                    type="file"
+                    accept=".pdf"
+                    onChange={handleFileChange}
+                    className="w-full field-input text-sm"
+                  />
+                </div>
 
-              {limitReached && (
-                <p className="font-body text-sm text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2">
-                  Wykorzystano darmowy limit audytów. Ulepsz do Premium, aby kontynuować bez ograniczeń.
-                </p>
-              )}
+                <div>
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-400 mb-2">
+                    Treść dedykowanej oferty pracy
+                  </label>
+                  <textarea
+                    value={jobDescription}
+                    onChange={(e) => setJobDescription(e.target.value)}
+                    placeholder="Wklej tutaj wymagania z ogłoszenia, aby algorytm wyliczył precyzyjny współczynnik dopasowania (Job Match)..."
+                    rows={8}
+                    className="w-full field-input text-sm resize-none scrollbar-thin"
+                  />
+                </div>
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="grad-cta w-full font-display font-semibold text-sm text-white py-3 px-4 rounded-xl"
-              >
-                {loading
-                  ? "Generowanie audytu..."
-                  : limitReached
-                  ? "Ulepsz do Premium, aby kontynuować"
-                  : "Uruchom audyt ekspercki"}
-              </button>
-  </form>
-)}
-            
+                {error && (
+                  <p className="font-body text-sm text-rose-300 bg-rose-500/10 border border-rose-500/20 rounded-xl px-3 py-2">
+                    {error}
+                  </p>
+                )}
+
+                {limitReached && (
+                  <p className="font-body text-sm text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2">
+                    Wykorzystano darmowy limit audytów. Ulepsz do Premium, aby kontynuować bez ograniczeń.
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="grad-cta w-full font-display font-semibold text-sm text-white py-3 px-4 rounded-xl"
+                >
+                  {loading
+                    ? "Generowanie audytu..."
+                    : limitReached
+                    ? "Ulepsz do Premium, aby kontynuować"
+                    : "Uruchom audyt ekspercki"}
+                </button>
+              </form>
+            )}
           </div>
 
           {/* PANEL WYNIKÓW */}
@@ -974,19 +949,21 @@ const res = await fetch(`${API_URL}/api/upload`, {
                       {plan.cta}
                     </button>
                   )}
-                  {showAuth && (
-  <AuthModal
-    apiUrl={API_URL}
-    onClose={() => setShowAuth(false)}
-    onAuthSuccess={handleAuthSuccess}
-  />
-)}
                 </div>
               ))}
             </div>
 
           </div>
         </div>
+      )}
+
+      {/* MODAL LOGOWANIA */}
+      {showAuth && (
+        <AuthModal
+          apiUrl={API_URL}
+          onClose={() => setShowAuth(false)}
+          onAuthSuccess={handleAuthSuccess}
+        />
       )}
     </div>
   );
