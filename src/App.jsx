@@ -16,6 +16,120 @@ function PremiumUnlockRow({ label, onClick }) {
   );
 }
 
+function AuthModal({ onClose, onAuthSuccess, apiUrl }) {
+  const [mode, setMode] = useState('login'); // 'login' | 'register'
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const endpoint = mode === 'login' ? '/api/auth/login' : '/api/auth/register';
+      const res = await fetch(`${apiUrl}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || 'Coś poszło nie tak.');
+      }
+      onAuthSuccess(data.access_token);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="modal-in relative w-full max-w-sm glass-card rounded-3xl p-6 sm:p-8 border border-white/10 bg-[#0B0F19]/95"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-5 right-5 text-slate-500 hover:text-slate-300 transition-colors text-lg leading-none"
+          aria-label="Zamknij"
+        >
+          ✕
+        </button>
+
+        <h3 className="font-display text-2xl font-extrabold text-white mb-1">
+          {mode === 'login' ? 'Zaloguj się' : 'Utwórz konto'}
+        </h3>
+        <p className="font-body text-sm text-slate-400 mb-6">
+          {mode === 'login'
+            ? 'Zaloguj się, aby uruchomić audyt CV.'
+            : 'Załóż darmowe konto, aby zacząć.'}
+        </p>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-400 mb-2">
+              Email
+            </label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full field-input text-sm"
+              placeholder="ty@przyklad.pl"
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-400 mb-2">
+              Hasło
+            </label>
+            <input
+              type="password"
+              required
+              minLength={6}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full field-input text-sm"
+              placeholder="••••••••"
+            />
+          </div>
+
+          {error && (
+            <p className="font-body text-sm text-rose-300 bg-rose-500/10 border border-rose-500/20 rounded-xl px-3 py-2">
+              {error}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="grad-cta w-full font-display font-semibold text-sm text-white py-3 px-4 rounded-xl"
+          >
+            {loading ? 'Chwileczkę...' : mode === 'login' ? 'Zaloguj się' : 'Zarejestruj się'}
+          </button>
+        </form>
+
+        <p className="text-center text-sm text-slate-400 mt-5 font-body">
+          {mode === 'login' ? 'Nie masz konta?' : 'Masz już konto?'}{' '}
+          <button
+            onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); }}
+            className="text-indigo-300 hover:text-indigo-200 font-medium"
+          >
+            {mode === 'login' ? 'Zarejestruj się' : 'Zaloguj się'}
+          </button>
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [userStatus, setUserStatus] = useState({ is_premium: false, analysis_count: 0 });
   const [file, setFile] = useState(null);
@@ -24,6 +138,11 @@ export default function App() {
   const [report, setReport] = useState(null);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+
+const [token, setToken] = useState(() => localStorage.getItem('access_token'));
+const [showAuth, setShowAuth] = useState(false);
+const isLoggedIn = !!token;
+
 
   const [showPricing, setShowPricing] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
@@ -41,15 +160,37 @@ export default function App() {
     return () => clearTimeout(t);
   }, [toast]);
 
-  const fetchUserStatus = async () => {
-    try {
-      const res = await fetch(`${API_URL}/api/user/status`);
-      const data = await res.json();
-      setUserStatus((prev) => ({ ...prev, ...data }));
-    } catch (err) {
-      console.error("Error fetching user status", err);
+  const fetchUserStatus = async (authToken = token) => {
+  if (!authToken) return;
+  try {
+    const res = await fetch(`${API_URL}/api/user/status`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    if (!res.ok) {
+      // token wygasł albo jest nieprawidłowy
+      handleLogout();
+      return;
     }
-  };
+    const data = await res.json();
+    setUserStatus((prev) => ({ ...prev, ...data }));
+  } catch (err) {
+    console.error("Error fetching user status", err);
+  }
+};
+
+const handleAuthSuccess = (newToken) => {
+  localStorage.setItem('access_token', newToken);
+  setToken(newToken);
+  setShowAuth(false);
+  fetchUserStatus(newToken);
+};
+
+const handleLogout = () => {
+  localStorage.removeItem('access_token');
+  setToken(null);
+  setUserStatus({ is_premium: false, analysis_count: 0 });
+  setReport(null);
+};
 
   const handleFileChange = (e) => {
     setFile(e.target.files[0]);
@@ -59,6 +200,10 @@ export default function App() {
 
   const handleAnalyze = async (e) => {
     e.preventDefault();
+     if (!isLoggedIn) {
+    setShowAuth(true);
+    return;
+  }
     if (limitReached) {
       setShowPricing(true);
       return;
@@ -71,6 +216,12 @@ export default function App() {
     setLoading(true);
     setReport(null);
     setCopied(false);
+
+const res = await fetch(`${API_URL}/api/upload`, {
+  method: "POST",
+  headers: { Authorization: `Bearer ${token}` },
+  body: formData,
+});
 
     const formData = new FormData();
     formData.append("file", file);
@@ -110,11 +261,16 @@ export default function App() {
 
   // Integracja z Twoim nowym backendem Stripe:
   const handlePurchasePremium = async () => {
-    setPurchasing(true);
-    try {
-      const res = await fetch(`${API_URL}/api/create-checkout-session`, {
-        method: "POST",
-      });
+  if (!isLoggedIn) {
+    setShowAuth(true);
+    return;
+  }
+  setPurchasing(true);
+  try {
+    const res = await fetch(`${API_URL}/api/create-checkout-session`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
       const data = await res.json();
       if (data.url) {
         window.location.href = data.url; // Przekierowanie do Stripe
@@ -367,6 +523,43 @@ export default function App() {
           </span>
         </div>
         <div className="flex items-center space-x-3">
+  {!isLoggedIn ? (
+    <button
+      onClick={() => setShowAuth(true)}
+      className="grad-cta font-display font-semibold text-xs text-white py-2 px-4 rounded-xl"
+    >
+      Zaloguj się
+    </button>
+  ) : (
+    <>
+      {isPremium ? (
+        <span className="text-[11px] font-mono px-3 py-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 text-emerald-300 font-medium tracking-wide flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span>
+          PREMIUM ACTIVATED
+        </span>
+      ) : (
+        <>
+          <span className="hidden sm:inline text-[11px] font-mono px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.03] text-slate-400 font-medium tracking-wide">
+            PLAN DARMOWY &middot; {Math.max(FREE_MONTHLY_LIMIT - (userStatus.analysis_count || 0), 0)}/{FREE_MONTHLY_LIMIT} audytów
+          </span>
+          <button
+            onClick={() => setShowPricing(true)}
+            className="grad-cta font-display font-semibold text-xs text-white py-2 px-4 rounded-xl"
+          >
+            Ulepsz do Premium
+          </button>
+        </>
+      )}
+      <button
+        onClick={handleLogout}
+        className="text-xs font-mono text-slate-500 hover:text-slate-300 px-3 py-2"
+      >
+        Wyloguj
+      </button>
+    </>
+  )}
+</div>
+        <div className="flex items-center space-x-3">
           {isPremium ? (
             <span className="text-[11px] font-mono px-3 py-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 text-emerald-300 font-medium tracking-wide flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span>
@@ -410,8 +603,21 @@ export default function App() {
             <h3 className="font-display text-xl font-semibold text-white border-b border-white/5 pb-3">
               Konfiguracja analizy
             </h3>
-            <form onSubmit={handleAnalyze} className="space-y-6">
-              <div>
+            {!isLoggedIn ? (
+  <div className="text-center py-8 space-y-4">
+    <p className="font-body text-sm text-slate-400">
+      Zaloguj się, aby uruchomić audyt CV.
+    </p>
+    <button
+      onClick={() => setShowAuth(true)}
+      className="grad-cta font-display font-semibold text-sm text-white py-3 px-6 rounded-xl"
+    >
+      Zaloguj się / Zarejestruj
+    </button>
+  </div>
+) : (
+  <form onSubmit={handleAnalyze} className="space-y-6">
+    <div>
                 <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-400 mb-2">
                   Plik CV w formacie PDF
                 </label>
@@ -459,7 +665,9 @@ export default function App() {
                   ? "Ulepsz do Premium, aby kontynuować"
                   : "Uruchom audyt ekspercki"}
               </button>
-            </form>
+  </form>
+)}
+            
           </div>
 
           {/* PANEL WYNIKÓW */}
@@ -766,6 +974,13 @@ export default function App() {
                       {plan.cta}
                     </button>
                   )}
+                  {showAuth && (
+  <AuthModal
+    apiUrl={API_URL}
+    onClose={() => setShowAuth(false)}
+    onAuthSuccess={handleAuthSuccess}
+  />
+)}
                 </div>
               ))}
             </div>
