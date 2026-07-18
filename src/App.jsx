@@ -17,15 +17,19 @@ function PremiumUnlockRow({ label, onClick }) {
 }
 
 function AuthModal({ onClose, onAuthSuccess, apiUrl }) {
-  const [mode, setMode] = useState('login'); // 'login' | 'register'
+  const [mode, setMode] = useState('login'); // 'login' | 'register' | 'verify'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [code, setCode] = useState('');
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
 
-  const handleSubmit = async (e) => {
+  const handleLoginOrRegister = async (e) => {
     e.preventDefault();
     setError('');
+    setInfo('');
     setLoading(true);
     try {
       const endpoint = mode === 'login' ? '/api/auth/login' : '/api/auth/register';
@@ -38,11 +42,63 @@ function AuthModal({ onClose, onAuthSuccess, apiUrl }) {
       if (!res.ok) {
         throw new Error(data.detail || 'Coś poszło nie tak.');
       }
+
+      if (mode === 'register') {
+        // Rejestracja się powiodła, ale konto wymaga weryfikacji kodem
+        setInfo('Kod weryfikacyjny został wysłany na Twój email.');
+        setMode('verify');
+      } else {
+        // Logowanie od razu daje token (konto już zweryfikowane)
+        onAuthSuccess(data.access_token);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerify = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const res = await fetch(`${apiUrl}/api/auth/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || 'Nieprawidłowy kod.');
+      }
       onAuthSuccess(data.access_token);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    setError('');
+    setInfo('');
+    setResending(true);
+    try {
+      const res = await fetch(`${apiUrl}/api/auth/resend-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || 'Nie udało się wysłać kodu.');
+      }
+      setInfo('Nowy kod został wysłany.');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setResending(false);
     }
   };
 
@@ -63,68 +119,131 @@ function AuthModal({ onClose, onAuthSuccess, apiUrl }) {
           ✕
         </button>
 
-        <h3 className="font-display text-2xl font-extrabold text-white mb-1">
-          {mode === 'login' ? 'Zaloguj się' : 'Utwórz konto'}
-        </h3>
-        <p className="font-body text-sm text-slate-400 mb-6">
-          {mode === 'login'
-            ? 'Zaloguj się, aby uruchomić audyt CV.'
-            : 'Załóż darmowe konto, aby zacząć.'}
-        </p>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-400 mb-2">
-              Email
-            </label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full field-input text-sm"
-              placeholder="ty@przyklad.pl"
-            />
-          </div>
-          <div>
-            <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-400 mb-2">
-              Hasło
-            </label>
-            <input
-              type="password"
-              required
-              minLength={6}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full field-input text-sm"
-              placeholder="••••••••"
-            />
-          </div>
-
-          {error && (
-            <p className="font-body text-sm text-rose-300 bg-rose-500/10 border border-rose-500/20 rounded-xl px-3 py-2">
-              {error}
+        {mode !== 'verify' ? (
+          <>
+            <h3 className="font-display text-2xl font-extrabold text-white mb-1">
+              {mode === 'login' ? 'Zaloguj się' : 'Utwórz konto'}
+            </h3>
+            <p className="font-body text-sm text-slate-400 mb-6">
+              {mode === 'login'
+                ? 'Zaloguj się, aby uruchomić audyt CV.'
+                : 'Załóż darmowe konto, aby zacząć.'}
             </p>
-          )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="grad-cta w-full font-display font-semibold text-sm text-white py-3 px-4 rounded-xl"
-          >
-            {loading ? 'Chwileczkę...' : mode === 'login' ? 'Zaloguj się' : 'Zarejestruj się'}
-          </button>
-        </form>
+            <form onSubmit={handleLoginOrRegister} className="space-y-4">
+              <div>
+                <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-400 mb-2">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full field-input text-sm"
+                  placeholder="ty@przyklad.pl"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-400 mb-2">
+                  Hasło
+                </label>
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full field-input text-sm"
+                  placeholder="••••••••"
+                />
+              </div>
 
-        <p className="text-center text-sm text-slate-400 mt-5 font-body">
-          {mode === 'login' ? 'Nie masz konta?' : 'Masz już konto?'}{' '}
-          <button
-            onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); }}
-            className="text-indigo-300 hover:text-indigo-200 font-medium"
-          >
-            {mode === 'login' ? 'Zarejestruj się' : 'Zaloguj się'}
-          </button>
-        </p>
+              {error && (
+                <p className="font-body text-sm text-rose-300 bg-rose-500/10 border border-rose-500/20 rounded-xl px-3 py-2">
+                  {error}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="grad-cta w-full font-display font-semibold text-sm text-white py-3 px-4 rounded-xl"
+              >
+                {loading ? 'Chwileczkę...' : mode === 'login' ? 'Zaloguj się' : 'Zarejestruj się'}
+              </button>
+            </form>
+
+            <p className="text-center text-sm text-slate-400 mt-5 font-body">
+              {mode === 'login' ? 'Nie masz konta?' : 'Masz już konto?'}{' '}
+              <button
+                onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); setInfo(''); }}
+                className="text-indigo-300 hover:text-indigo-200 font-medium"
+              >
+                {mode === 'login' ? 'Zarejestruj się' : 'Zaloguj się'}
+              </button>
+            </p>
+          </>
+        ) : (
+          <>
+            <h3 className="font-display text-2xl font-extrabold text-white mb-1">
+              Potwierdź email
+            </h3>
+            <p className="font-body text-sm text-slate-400 mb-6">
+              Wpisz 6-cyfrowy kod wysłany na <span className="text-slate-300">{email}</span>.
+            </p>
+
+            <form onSubmit={handleVerify} className="space-y-4">
+              <div>
+                <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-400 mb-2">
+                  Kod weryfikacyjny
+                </label>
+                <input
+                  type="text"
+                  required
+                  inputMode="numeric"
+                  pattern="[0-9]{6}"
+                  maxLength={6}
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+                  className="w-full field-input text-center text-2xl tracking-[0.5em] font-mono"
+                  placeholder="000000"
+                />
+              </div>
+
+              {info && (
+                <p className="font-body text-sm text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-3 py-2">
+                  {info}
+                </p>
+              )}
+
+              {error && (
+                <p className="font-body text-sm text-rose-300 bg-rose-500/10 border border-rose-500/20 rounded-xl px-3 py-2">
+                  {error}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading || code.length !== 6}
+                className="grad-cta w-full font-display font-semibold text-sm text-white py-3 px-4 rounded-xl"
+              >
+                {loading ? 'Weryfikacja...' : 'Potwierdź kod'}
+              </button>
+            </form>
+
+            <p className="text-center text-sm text-slate-400 mt-5 font-body">
+              Nie dostałeś kodu?{' '}
+              <button
+                onClick={handleResendCode}
+                disabled={resending}
+                className="text-indigo-300 hover:text-indigo-200 font-medium"
+              >
+                {resending ? 'Wysyłanie...' : 'Wyślij ponownie'}
+              </button>
+            </p>
+          </>
+        )}
       </div>
     </div>
   );
